@@ -242,9 +242,12 @@ function adapter(uri, opts){
   };
 
   // TODO finish fleshing out the clients api function
-  Redis.prototype.clients = function() {
+  Redis.prototype.clients = function(room, fn) {
     console.log("\nSocket ID's for this socket server:");
-    console.dir(this.sids);
+    console.dir(Object.keys(this.sids));
+    if (fn) {
+        fn(this.sids);
+    }
   };
 
   return Redis;
