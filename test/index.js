@@ -10,8 +10,7 @@ var redisAdapter = require('../');
 function client(srv, nsp, opts){
   if ('object' == typeof nsp) {
     opts = nsp;
-    nsp = null;
-  }
+    nsp = null; }
   var addr = srv.address();
   if (!addr) {
     addr = srv.listen().address();
@@ -24,6 +23,7 @@ describe('socket.io-redis', function(){
   describe('broadcast', function(){
     beforeEach(function(done){
       this.redisClients = [];
+      this.socket_servers = []
       var self = this;
 
       async.times(2, function(n, next){
@@ -32,6 +32,7 @@ describe('socket.io-redis', function(){
         var srv = http();
         var sio = io(srv, {adapter: redisAdapter({pubClient: pub, subClient: sub})});
         self.redisClients.push(pub, sub);
+        self.socket_servers.push(sio);
 
         srv.listen(function(){
           ['/', '/nsp'].forEach(function(name){
@@ -62,6 +63,9 @@ describe('socket.io-redis', function(){
             function(callback){
               async.times(2, function(n, next){
                 var socket = client(srv, '/nsp', {forceNew: true});
+                // FIXME ---- temporarily log the socket id to console after socket creation
+                console.log("socket id is: " + socket.id);
+                // ------------------------
                 socket.on('connect', function(){
                   socket.emit('join', function(){
                     next(null, socket);
@@ -194,5 +198,28 @@ describe('socket.io-redis', function(){
         });
       }, 20);
     });
+
+    //piggy-back the clients api test off of what was already created for broadcast
+    describe('clients', function() {
+      it('should get a list of client sids', function(done){
+        console.log("\nRunning clients api test\n");
+        var socket_ids = this.sockets.map(function(socket) {
+          return socket.id;
+        });
+        console.log("\nFollowing are the current socket-ids:");
+        console.dir(socket_ids);
+
+        async.each(this.socket_servers, function(socket_server,next) {
+          socket_server.of('/nsp').in('room').clients(function(err, sids) {
+            console.log(sids)
+          });
+        });
+
+        done(new Error("clients test not complete"));
+
+      });
+    });
+
   });
+
 });
