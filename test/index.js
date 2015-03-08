@@ -154,7 +154,6 @@ describe('socket.io-redis', function(){
         done();
       });
       this.sockets[0].emit('request', 'hi');
-      console.log("SOCKET0: " + this.sockets[0].id);
     });
 
     it('should not send message for clients left the room', function(done){
@@ -224,6 +223,8 @@ describe('socket.io-redis', function(){
         this.socket_servers.forEach(function(socket_server) {
           socket_server.of('/').clients();
         });
+
+        done(new Error("clients test not complete"));
 
       });
     });
