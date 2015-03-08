@@ -241,6 +241,12 @@ function adapter(uri, opts){
     });
   };
 
+  // TODO finish fleshing out the clients api function
+  Redis.prototype.clients = function() {
+    console.log("\nSocket ID's for this socket server:");
+    console.dir(this.sids);
+  };
+
   return Redis;
 
 }
