@@ -24,6 +24,9 @@ describe('socket.io-redis', function(){
     beforeEach(function(done){
       this.redisClients = [];
       this.socket_servers = []
+      this.connected_sockets = {};
+      this.connected_sockets['/'] = {};
+      this.connected_sockets['/nsp'] = {};
       var self = this;
 
       async.times(2, function(n, next){
@@ -37,12 +40,17 @@ describe('socket.io-redis', function(){
         srv.listen(function(){
           ['/', '/nsp'].forEach(function(name){
             sio.of(name).on('connection', function(socket){
+              // add socket to the connected sockets
+              self.connected_sockets[name][socket.id] = true;
+
               socket.on('join', function(callback){
                 socket.join('room', callback);
               });
 
               socket.on('leave', function(callback){
                 socket.leave('room', callback);
+                delete self.connected_sockets['/'][socket.id];
+                delete self.connected_sockets['/nsp'][socket.id];
               });
 
               socket.on('socket broadcast', function(data){
@@ -63,9 +71,6 @@ describe('socket.io-redis', function(){
             function(callback){
               async.times(2, function(n, next){
                 var socket = client(srv, '/nsp', {forceNew: true});
-                // FIXME ---- temporarily log the socket id to console after socket creation
-                console.log("socket id is: " + socket.id);
-                // ------------------------
                 socket.on('connect', function(){
                   socket.emit('join', function(){
                     next(null, socket);
@@ -149,6 +154,7 @@ describe('socket.io-redis', function(){
         done();
       });
       this.sockets[0].emit('request', 'hi');
+      console.log("SOCKET0: " + this.sockets[0].id);
     });
 
     it('should not send message for clients left the room', function(done){
@@ -203,19 +209,21 @@ describe('socket.io-redis', function(){
     describe('clients', function() {
       it('should get a list of client sids', function(done){
         console.log("\nRunning clients api test\n");
-        var socket_ids = this.sockets.map(function(socket) {
-          return socket.id;
-        });
         console.log("\nFollowing are the current socket-ids:");
-        console.dir(socket_ids);
+        for (room in this.connected_sockets) {
+          console.log("in room: " + room);
+          console.log(Object.keys(this.connected_sockets[room]));
+        }
 
-        async.each(this.socket_servers, function(socket_server,next) {
-          socket_server.of('/nsp').in('room').clients(function(err, sids) {
-            console.log(sids)
+        /*async.each(this.socket_servers, function(socket_server,next) {
+          socket_server.of('/').clients(function(err, sids) {
+            console.log(sids);
           });
-        });
+        });*/
 
-        done(new Error("clients test not complete"));
+        this.socket_servers.forEach(function(socket_server) {
+          socket_server.of('/').clients();
+        });
 
       });
     });
