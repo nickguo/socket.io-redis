@@ -288,8 +288,12 @@ function adapter(uri, opts){
         pubsub.pubsub('NUMSUB', prefix + '#clientrequest', function (err, subs) {
           if (err) return fn && fn(err);
 
-          var handle = setTimeout(finish, 1000);
           var remaining = subs.pop() - 1;
+
+          //TODO: find a better way to determine timeout.
+          //      currently just scales the timeout with the number of remaining subs
+          //      at the rate of 10ms per additional sub
+          var handle = setTimeout(finish, 10*remaining);
           var muid = uid2(6);
           var packet = [self.nsp.name, uid, muid, rooms];
           //var packet = [self.nsp.name, uid, muid, rooms];
