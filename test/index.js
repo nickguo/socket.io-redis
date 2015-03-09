@@ -29,7 +29,7 @@ describe('socket.io-redis', function(){
       this.connected_sockets['/nsp'] = {};
       var self = this;
 
-      async.times(2, function(n, next){
+      async.times(3, function(n, next){
         var pub = redis.createClient();
         var sub = redis.createClient(null, null, {detect_buffers: true});
         var srv = http();
@@ -41,16 +41,14 @@ describe('socket.io-redis', function(){
           ['/', '/nsp'].forEach(function(name){
             sio.of(name).on('connection', function(socket){
               // add socket to the connected sockets
-              self.connected_sockets[name][socket.id] = true;
-
               socket.on('join', function(callback){
                 socket.join('room', callback);
+                self.connected_sockets[name][socket.id] = true;
               });
 
               socket.on('leave', function(callback){
                 socket.leave('room', callback);
-                delete self.connected_sockets['/'][socket.id];
-                delete self.connected_sockets['/nsp'][socket.id];
+                delete self.connected_sockets[name][socket.id];
               });
 
               socket.on('socket broadcast', function(data){
@@ -208,23 +206,32 @@ describe('socket.io-redis', function(){
     describe('clients', function() {
       it('should get a list of client sids', function(done){
         console.log("\nRunning clients api test\n");
-        console.log("\nFollowing are the current socket-ids:");
+
+        console.log("Connected sockets:");
         for (room in this.connected_sockets) {
           console.log("in room: " + room);
           console.log(Object.keys(this.connected_sockets[room]));
         }
 
-        /*async.each(this.socket_servers, function(socket_server,next) {
+        var self = this;
+        //async.each([this.socket_servers[0]], function(socket_server,next) {
+        async.each(this.socket_servers, function(socket_server,next) {
+          socket_server.of('/').in('room').clients(function(err, sids) {
+            console.log("\nclients call on " + socket_server +":");
+            console.log(sids);
+            expect(sids.sort()).to.eql(Object.keys(self.connected_sockets['/']).sort());
+            next();
+          });
+        }, done);
+
+        /*this.socket_servers.forEach(function(socket_server) {
           socket_server.of('/').clients(function(err, sids) {
+            console.log("SOCKET IDS: ");
             console.log(sids);
           });
         });*/
 
-        this.socket_servers.forEach(function(socket_server) {
-          socket_server.of('/').clients();
-        });
-
-        done(new Error("clients test not complete"));
+        /*done(new Error("clients test not complete"));*/
 
       });
     });

@@ -46,15 +46,20 @@ function adapter(uri, opts){
   var port = Number(opts.port || 6379);
   var pub = opts.pubClient;
   var sub = opts.subClient;
+  var pubsub = opts.pubsubClient;
+  var clientsub = opts.clientsubClient;
   var prefix = opts.key || 'socket.io';
 
   // init clients if needed
   if (!pub) pub = redis(port, host);
   if (!sub) sub = redis(port, host, { detect_buffers: true });
+  if (!pubsub) pubsub = redis(port, host);
+  if (!clientsub) clientsub = redis(port, host, { detect_buffers: true });
 
   // this server's key
   var uid = uid2(6);
   var key = prefix + '#' + uid;
+
 
   /**
    * Adapter constructor.
@@ -75,6 +80,11 @@ function adapter(uri, opts){
     sub.subscribe(prefix + '#' + nsp.name + '#', function(err){
       if (err) self.emit('error', err);
     });
+
+    sub.subscribe(prefix + '#clientrequest', function(err) {
+      if (err) self.emit('error', err);
+    });
+
     sub.on('message', this.onmessage.bind(this));
   }
 
@@ -91,25 +101,36 @@ function adapter(uri, opts){
    */
 
   Redis.prototype.onmessage = function(channel, msg){
+    // need to determine if broadcast message, or clients message
     var pieces = channel.split('#');
-    var args = msgpack.decode(msg);
-    var packet;
 
-    if (uid == args.shift()) return debug('ignore same uid');
-
-    packet = args[0];
-
-    if (packet && packet.nsp === undefined) {
-      packet.nsp = '/';
+    if (pieces.slice(-1)[0] == "clientrequest") {
+      var args = msgpack.decode(msg);
+      if (this.nsp.name != args.shift()) return debug("ignore different namespace");
+      if (uid == args.shift()) return debug('ignore same uid');
+      args.push(null, prefix + '#' + args.shift() + '#clientresponse', true);
+      this.clients.apply(this, args);
     }
+    else {
+      var args = msgpack.decode(msg);
+      var packet;
 
-    if (!packet || packet.nsp != this.nsp.name) {
-      return debug('ignore different namespace');
+      if (uid == args.shift()) return debug('ignore same uid');
+
+      packet = args[0];
+
+      if (packet && packet.nsp === undefined) {
+        packet.nsp = '/';
+      }
+
+      if (!packet || packet.nsp != this.nsp.name) {
+        return debug('ignore different namespace');
+      }
+
+      args.push(true);
+
+      this.broadcast.apply(this, args);
     }
-
-    args.push(true);
-
-    this.broadcast.apply(this, args);
   };
 
   /**
@@ -242,12 +263,74 @@ function adapter(uri, opts){
   };
 
   // TODO finish fleshing out the clients api function
-  Redis.prototype.clients = function(room, fn) {
+
+
+  /*Redis.prototype.clients = function(room, fn) {
     console.log("\nSocket ID's for this socket server:");
     console.dir(Object.keys(this.sids));
     if (fn) {
         fn(this.sids);
     }
+  };*/
+
+  Redis.prototype.clients = function(rooms, fn, channel, remote){
+    var self = this;
+
+    Adapter.prototype.clients.call(this, rooms, function(err, sids) {
+      if (err) return fn && fn(err);
+
+      sids = sids || [];
+
+      if (remote) {
+        console.log("sending client request on: " + channel);
+        pub.publish(channel, msgpack.encode([sids]));
+      } else {
+        pubsub.pubsub('NUMSUB', prefix + '#clientrequest', function (err, subs) {
+          if (err) return fn && fn(err);
+
+          var handle = setTimeout(finish, 1000);
+          var remaining = subs.pop() - 1;
+          var muid = uid2(6);
+          var packet = [self.nsp.name, uid, muid, rooms];
+          //var packet = [self.nsp.name, uid, muid, rooms];
+          console.log("PACKET IS:" );
+          console.log(packet);
+
+          //var onclientresponsemessage = function(channel, message) {
+          function onclientresponsemessage(channel, message) {
+            var pieces = channel.toString().split('#');
+            console.log("---PIECES:");
+            console.log(pieces);
+            console.log(pieces.slice(-1)[0]);
+            if (pieces.slice(-1)[0] != "clientresponse") {
+              return;
+            }
+            console.log("EVENT2\n");
+            if (pieces.slice(-2)[0] != muid) return debug('ignore different client response');
+            var response = msgpack.decode(message);
+            console.log("RESPONSE:");
+            console.log(response);
+            sids.push.apply(sids, response[0]);
+            --remaining || finish();
+          }
+
+          sub.subscribe(prefix + '#' + muid + "#clientresponse", function(err) {
+            if (err) self.emit('error', err);
+          });
+
+          sub.on('message', onclientresponsemessage);
+
+          function finish(){
+            console.log("FINISHED");
+            clientsub.removeListener('message', onclientresponsemessage);
+            clearTimeout(handle);
+            fn && fn(null, sids);
+          }
+
+          pub.publish(prefix + '#clientrequest', msgpack.encode(packet));
+        });
+      }
+    });
   };
 
   return Redis;
