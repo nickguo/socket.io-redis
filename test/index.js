@@ -216,10 +216,10 @@ describe('socket.io-redis', function(){
         var self = this;
         //async.each([this.socket_servers[0]], function(socket_server,next) {
         async.each(this.socket_servers, function(socket_server,next) {
-          socket_server.of('/').in('room').clients(function(err, sids) {
+          socket_server.of('/nsp').in('room').clients(function(err, sids) {
             console.log("\nclients call on " + socket_server +":");
             console.log(sids);
-            expect(sids.sort()).to.eql(Object.keys(self.connected_sockets['/']).sort());
+            expect(sids.sort()).to.eql(Object.keys(self.connected_sockets['/nsp']).sort());
             next();
           });
         }, done);
