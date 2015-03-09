@@ -47,14 +47,13 @@ function adapter(uri, opts){
   var pub = opts.pubClient;
   var sub = opts.subClient;
   var pubsub = opts.pubsubClient;
-  var clientsub = opts.clientsubClient;
   var prefix = opts.key || 'socket.io';
+  var timeout = opts.timeout || 50;
 
   // init clients if needed
   if (!pub) pub = redis(port, host);
   if (!sub) sub = redis(port, host, { detect_buffers: true });
   if (!pubsub) pubsub = redis(port, host);
-  if (!clientsub) clientsub = redis(port, host, { detect_buffers: true });
 
   // this server's key
   var uid = uid2(6);
@@ -281,8 +280,8 @@ function adapter(uri, opts){
 
           //TODO: find a better way to determine timeout.
           //      currently just scales the timeout with the number of remaining subs
-          //      at the rate of 10ms per additional sub
-          var handle = setTimeout(finish, 10*remaining);
+          //      at the rate of TIMEOUT per additional sub
+          var handle = setTimeout(finish, timeout*remaining);
           var muid = uid2(6);
           var packet = [self.nsp.name, uid, muid, rooms];
 
@@ -304,7 +303,7 @@ function adapter(uri, opts){
           sub.on('message', onclientresponsemessage);
 
           function finish(){
-            clientsub.removeListener('message', onclientresponsemessage);
+            sub.removeListener('message', onclientresponsemessage);
             clearTimeout(handle);
             fn && fn(null, sids);
           }
@@ -316,5 +315,5 @@ function adapter(uri, opts){
   };
 
   return Redis;
-
 }
+
