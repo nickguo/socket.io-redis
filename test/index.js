@@ -27,6 +27,7 @@ describe('socket.io-redis', function(){
       this.connected_sockets = {};
       this.connected_sockets['/'] = {};
       this.connected_sockets['/nsp'] = {};
+      this.connected_sockets['all'] = {};
       var self = this;
 
       async.times(3, function(n, next){
@@ -40,6 +41,8 @@ describe('socket.io-redis', function(){
         srv.listen(function(){
           ['/', '/nsp'].forEach(function(name){
             sio.of(name).on('connection', function(socket){
+              self.connected_sockets['all'][socket.id] = true;
+
               // add socket to the connected sockets
               socket.on('join', function(callback){
                 socket.join('room', callback);
@@ -204,7 +207,7 @@ describe('socket.io-redis', function(){
 
     //piggy-back the clients api test off of what was already created for broadcast
     describe('clients', function() {
-      it('should get a list of client sids', function(done){
+      it('should get a list of client sids in "/nsp"', function(done){
         all_sids = Object.keys(this.connected_sockets['/nsp']).sort();
         var self = this;
 
@@ -214,8 +217,32 @@ describe('socket.io-redis', function(){
             next();
           });
         }, done);
-
       });
+
+      it('should get a list of client sids in "/"', function(done){
+        all_sids = Object.keys(this.connected_sockets['/']).sort();
+        var self = this;
+
+        async.each(this.socket_servers, function(socket_server,next) {
+          socket_server.of('/').in('room').clients(function(err, sids) {
+            expect(sids.sort()).to.eql(all_sids);
+            next();
+          });
+        }, done);
+      });
+
+      it('should get a list of all client sids', function(done){
+        all_sids = Object.keys(this.connected_sockets['all']).sort();
+        var self = this;
+
+        async.each(this.socket_servers, function(socket_server,next) {
+          socket_server.clients(function(err, sids) {
+            expect(sids.sort()).to.eql(all_sids);
+            next();
+          });
+        }, done);
+      });
+
     });
 
   });
