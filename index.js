@@ -262,17 +262,7 @@ function adapter(uri, opts){
     });
   };
 
-  // TODO finish fleshing out the clients api function
-
-
-  /*Redis.prototype.clients = function(room, fn) {
-    console.log("\nSocket ID's for this socket server:");
-    console.dir(Object.keys(this.sids));
-    if (fn) {
-        fn(this.sids);
-    }
-  };*/
-
+  
   Redis.prototype.clients = function(rooms, fn, channel, remote){
     var self = this;
 
@@ -282,7 +272,6 @@ function adapter(uri, opts){
       sids = sids || [];
 
       if (remote) {
-        console.log("sending client request on: " + channel);
         pub.publish(channel, msgpack.encode([sids]));
       } else {
         pubsub.pubsub('NUMSUB', prefix + '#clientrequest', function (err, subs) {
@@ -296,24 +285,14 @@ function adapter(uri, opts){
           var handle = setTimeout(finish, 10*remaining);
           var muid = uid2(6);
           var packet = [self.nsp.name, uid, muid, rooms];
-          //var packet = [self.nsp.name, uid, muid, rooms];
-          console.log("PACKET IS:" );
-          console.log(packet);
 
-          //var onclientresponsemessage = function(channel, message) {
           function onclientresponsemessage(channel, message) {
             var pieces = channel.toString().split('#');
-            console.log("---PIECES:");
-            console.log(pieces);
-            console.log(pieces.slice(-1)[0]);
             if (pieces.slice(-1)[0] != "clientresponse") {
               return;
             }
-            console.log("EVENT2\n");
             if (pieces.slice(-2)[0] != muid) return debug('ignore different client response');
             var response = msgpack.decode(message);
-            console.log("RESPONSE:");
-            console.log(response);
             sids.push.apply(sids, response[0]);
             --remaining || finish();
           }
@@ -325,7 +304,6 @@ function adapter(uri, opts){
           sub.on('message', onclientresponsemessage);
 
           function finish(){
-            console.log("FINISHED");
             clientsub.removeListener('message', onclientresponsemessage);
             clearTimeout(handle);
             fn && fn(null, sids);

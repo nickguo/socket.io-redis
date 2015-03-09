@@ -205,33 +205,15 @@ describe('socket.io-redis', function(){
     //piggy-back the clients api test off of what was already created for broadcast
     describe('clients', function() {
       it('should get a list of client sids', function(done){
-        console.log("\nRunning clients api test\n");
-
-        console.log("Connected sockets:");
-        for (room in this.connected_sockets) {
-          console.log("in room: " + room);
-          console.log(Object.keys(this.connected_sockets[room]));
-        }
-
+        all_sids = Object.keys(this.connected_sockets['/nsp']).sort();
         var self = this;
-        //async.each([this.socket_servers[0]], function(socket_server,next) {
+
         async.each(this.socket_servers, function(socket_server,next) {
           socket_server.of('/nsp').in('room').clients(function(err, sids) {
-            console.log("\nclients call on " + socket_server +":");
-            console.log(sids);
-            expect(sids.sort()).to.eql(Object.keys(self.connected_sockets['/nsp']).sort());
+            expect(sids.sort()).to.eql(all_sids);
             next();
           });
         }, done);
-
-        /*this.socket_servers.forEach(function(socket_server) {
-          socket_server.of('/').clients(function(err, sids) {
-            console.log("SOCKET IDS: ");
-            console.log(sids);
-          });
-        });*/
-
-        /*done(new Error("clients test not complete"));*/
 
       });
     });
